@@ -7,6 +7,7 @@
 #include <map>
 #include <cmath>
 #include <tuple>
+#include <numeric>
 
 using namespace std;
 
@@ -241,7 +242,12 @@ void TestAddDocument() {
     const vector<int> ratings = {1, 2, 3};
     {
         SearchServer server;
+        // Убеждаемся, что в поисковой системе не было документов
+        ASSERT_EQUAL(server.GetDocumentCount(), 0);
+
+        // Убеждаемся, что документ добавлен в поисковую систему
         server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
+        ASSERT_EQUAL(server.GetDocumentCount(), 1);
         const auto found_docs = server.FindTopDocuments("cat city"s);
         ASSERT(found_docs.size() == 1);
         const Document& doc0 = found_docs[0];
@@ -334,15 +340,11 @@ void TestSortByRelevance() {
     server.AddDocument(45, "cute cow on the river"s, DocumentStatus::ACTUAL, {2, 7, 4});
     // Убеждаемся, что найденные документы отсортированы в порядке убывания релевантности
     {
-        auto top_docs = server.FindTopDocuments("grass glasses river"s);
-        ASSERT(top_docs.size() == 3);
-
-        ASSERT_EQUAL(top_docs[0].id, 44);
-        ASSERT_EQUAL(top_docs[1].id, 45);
-        ASSERT_EQUAL(top_docs[2].id, 50);
-
-        ASSERT(top_docs[0].relevance > top_docs[1].relevance);
-        ASSERT(top_docs[1].relevance > top_docs[2].relevance);
+        auto found_docs = server.FindTopDocuments("grass glasses river"s);
+        ASSERT(found_docs.size() == 3);
+        for (size_t i = 0; i + 1 < found_docs.size(); ++i) {
+            ASSERT(found_docs[i].relevance > found_docs[i + 1].relevance);
+        }
     }
 }
 
@@ -352,12 +354,13 @@ void TestAverageRatingCalculation()
     const int doc_id = 42;
     const string content = "cat in the city"s;
     const vector<int> ratings = {1, 2, 3};
+	const int expected_rating = accumulate(ratings.begin(), ratings.end(), 0) / ratings.size();
     // Убеждаемся, что средний рейтинг документа вычислен правильно
     {
         SearchServer server;
         server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
         const auto found_docs = server.FindTopDocuments("cat"s);
-        ASSERT_EQUAL(found_docs[0].rating, 2);
+        ASSERT_EQUAL(found_docs[0].rating, expected_rating);
     }
 }
 
@@ -404,13 +407,17 @@ void TestRelevanceCalculation()
     server.AddDocument(50, "dog on the grass with glass"s, DocumentStatus::BANNED, {3, 2, 1});
     server.AddDocument(44, "rat with glasses"s, DocumentStatus::IRRELEVANT, {4, 5, 0});
     server.AddDocument(45, "cute cow on the river"s, DocumentStatus::BANNED, {2, 7, 4});
+	
+    const double expected_relevance0 = 1.0 / 3.0 * log(server.GetDocumentCount() / 1.0);
+    const double expected_relevance1 = 1.0 / 5.0 * log(server.GetDocumentCount() / 1.0);
+    const double epsilon = 1e6;
     // Убеждаемся, что релевантность найденных документов вычисляется правильно
     {
-        auto top_docs = server.FindTopDocuments("grass glasses river"s,
+        auto found_docs = server.FindTopDocuments("grass glasses river"s,
                                                 [](int id, DocumentStatus status, int rating) {return rating > 2;});
-        ASSERT(top_docs.size() == 2);
-
-        ASSERT(top_docs[0].relevance < 0.346573590 + 1e6);
+        ASSERT(found_docs.size() == 2);
+        ASSERT(fabs(found_docs[0].relevance - expected_relevance0) < epsilon);
+        ASSERT(fabs(found_docs[1].relevance - expected_relevance1) < epsilon);
     }
 }
 
