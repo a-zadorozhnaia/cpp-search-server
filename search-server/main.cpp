@@ -84,10 +84,8 @@ public:
     explicit SearchServer(const StringContainer& stop_words)
         : stop_words_(MakeUniqueNonEmptyStrings(stop_words))
     {
-        for (const auto& word : stop_words_) {
-            if (!IsValidWord(word)) {
-                throw invalid_argument("Наличие недопустимых символов (с кодами от 0 до 31) среди стоп-слов"s);
-            }
+        if (!all_of(stop_words_.begin(), stop_words_.end(), IsValidWord) ) {
+            throw invalid_argument("Наличие недопустимых символов (с кодами от 0 до 31) среди стоп-слов"s);
         }
     }
 
@@ -116,8 +114,7 @@ public:
 
     template <typename DocumentPredicate>
     vector<Document> FindTopDocuments(const string& raw_query, DocumentPredicate document_predicate) const {
-        Query query;
-        ParseQuery(raw_query, query);
+		Query query = ParseQuery(raw_query);
         vector<Document> matched_documents = FindAllDocuments(query, document_predicate);
 
         sort(matched_documents.begin(), matched_documents.end(),
@@ -151,15 +148,11 @@ public:
     }
 
     int GetDocumentId(int index) const {
-        if (index < 0 || index >= GetDocumentCount()) {
-            throw out_of_range("Индекс переданного документа выходит за пределы допутимого диапазона"s);
-        }
-        return documents_id_[index];
+        return documents_id_.at(index);
     }
 
     tuple<vector<string>, DocumentStatus> MatchDocument(const string& raw_query, int document_id) const {
-        Query query;
-        ParseQuery(raw_query, query);
+        Query query = ParseQuery(raw_query);
         vector<string> matched_words;
         for (const string& word : query.plus_words) {
             if (word_to_document_freqs_.count(word) == 0) {
@@ -234,7 +227,7 @@ private:
         bool is_stop;
     };
 
-    void ParseQueryWord(string text, QueryWord& query_word) const {
+    QueryWord ParseQueryWord(string text) const {
         bool is_minus = false;
         // Word shouldn't be empty
         if (text[0] == '-') {
@@ -248,7 +241,7 @@ private:
             is_minus = true;
             text = text.substr(1);
         }
-        query_word = {text, is_minus, IsStopWord(text)};
+        return {text, is_minus, IsStopWord(text)};
     }
 
     struct Query {
@@ -256,7 +249,8 @@ private:
         set<string> minus_words;
     };
 
-    void ParseQuery(const string& text, Query& query) const {
+    Query ParseQuery(const string& text) const {
+		Query query;
         for (const string& word : SplitIntoWords(text)) {
             if (!IsValidWord(word)) {
                 throw invalid_argument("Наличие недопустимых символов (с кодами от 0 до 31) в тексте поискового запроса"s);
@@ -272,6 +266,7 @@ private:
                 }
             }
         }
+		return query;
     }
 
     // Existence required
