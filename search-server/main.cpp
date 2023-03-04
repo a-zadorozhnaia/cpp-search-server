@@ -256,8 +256,7 @@ private:
                 throw invalid_argument("Наличие недопустимых символов (с кодами от 0 до 31) в тексте поискового запроса"s);
             }
 
-            QueryWord query_word;
-            ParseQueryWord(word, query_word);
+            QueryWord query_word = ParseQueryWord(word);
             if (!query_word.is_stop) {
                 if (query_word.is_minus) {
                     query.minus_words.insert(query_word.data);
