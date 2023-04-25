@@ -24,24 +24,40 @@ public:
     explicit SearchServer(const StringContainer& stop_words);
     explicit SearchServer(const std::string& stop_words_text);
 
+    // Добавляет документ в поисковый сервер
     void AddDocument(int document_id, const std::string& document, DocumentStatus status, const std::vector<int>& ratings);
 
+    // Поиск докуметов по запросу
     template <typename DocumentPredicate>
     std::vector<Document> FindTopDocuments(const std::string& raw_query, DocumentPredicate document_predicate) const;
     std::vector<Document> FindTopDocuments(const std::string& raw_query, DocumentStatus status) const;
     std::vector<Document> FindTopDocuments(const std::string& raw_query) const;
+    // Возвращает количесвто документов
     int GetDocumentCount() const;
-    int GetDocumentId(int index) const;
+    // Возвращает список слов и статус документа с document_id, соответсвующий запросу raw_query
     std::tuple<std::vector<std::string>, DocumentStatus> MatchDocument(const std::string& raw_query, int document_id) const;
+    // Возращает итератор на id первый документа
+    std::vector<int>::const_iterator begin() const;
+    // Возращает итератор на id последнего документа
+    std::vector<int>::const_iterator end() const;
+    // Возвращает частоту слов по id документа
+    const std::map<std::string, double>& GetWordFrequencies(int document_id) const;
+    // Удаляет документ из поискового сервера
+    void RemoveDocument(int document_id);
 
 private:
     struct DocumentData {
         int rating;
         DocumentStatus status;
     };
+    // Множество стоп-слов
     const std::set<std::string> stop_words_;
+    // Частота слова для каждого документа
     std::map<std::string, std::map<int, double>> word_to_document_freqs_;
+    std::map<int, std::map<std::string, double>> document_id_to_word_freq_;
+    // Список документов
     std::map<int, DocumentData> documents_;
+    // Список id документов
     std::vector<int> documents_id_;
 
     static bool IsValidWord(const std::string& word);

@@ -30,3 +30,6 @@
 *.exe
 *.out
 *.app
+/build-cpp-search-server-Qt_6_4_1_MinGW11_2_0-Debug/
+/build-cpp-search-server-Qt_6_4_1_MinGW11_2_0-Release/
+*.pro.user

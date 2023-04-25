@@ -25,7 +25,8 @@ void SearchServer::AddDocument(int document_id, const std::string& document, Doc
     std::vector<std::string> words = SplitIntoWordsNoStop(document);
     const double inv_word_count = 1.0 / words.size();
     for (const std::string& word : words) {
-        word_to_document_freqs_[word][document_id] += inv_word_count;
+        word_to_document_freqs_[word][document_id]  += inv_word_count;
+        document_id_to_word_freq_[document_id][word] += inv_word_count;
     }
     documents_id_.push_back(document_id);
     documents_.emplace(document_id, DocumentData{ComputeAverageRating(ratings), status});
@@ -45,10 +46,6 @@ std::vector<Document> SearchServer::FindTopDocuments(const std::string& raw_quer
 
 int SearchServer::GetDocumentCount() const {
     return documents_.size();
-}
-
-int SearchServer::GetDocumentId(int index) const {
-    return documents_id_.at(index);
 }
 
 std::tuple<std::vector<std::string>, DocumentStatus> SearchServer::MatchDocument(const std::string& raw_query, int document_id) const {
@@ -73,6 +70,40 @@ std::tuple<std::vector<std::string>, DocumentStatus> SearchServer::MatchDocument
     }
     std::tuple<std::vector<std::string>, DocumentStatus> matched_documents = {matched_words, documents_.at(document_id).status};
     return matched_documents;
+}
+
+std::vector<int>::const_iterator SearchServer::begin() const {
+    return documents_id_.cbegin();
+}
+
+std::vector<int>::const_iterator SearchServer::end() const {
+    return documents_id_.cend();
+}
+
+const std::map<std::string, double>& SearchServer::GetWordFrequencies(int document_id) const {
+    if (document_id_to_word_freq_.find(document_id) != document_id_to_word_freq_.end()) {
+        return document_id_to_word_freq_.at(document_id);
+    }
+    static const std::map<std::string, double> empty_result;
+    return empty_result;
+}
+
+void SearchServer::RemoveDocument(int document_id) {
+    // Удаление из списка id документов
+    auto it = std::remove(documents_id_.begin(), documents_id_.end(), document_id);
+    documents_id_.erase(it);
+
+    // Удаление из списка документов
+    documents_.erase(document_id);
+
+    // Удаление из списка соответсвия id документа частотам слов
+    document_id_to_word_freq_.erase(document_id);
+
+    // Удаление из списка соответсвия слов id документов и частотам
+    std::map<std::string, std::map<int, double>> word_to_document_freqs_;
+    for (auto& [word, freq] : word_to_document_freqs_) {
+        freq.erase(document_id);
+    }
 }
 
 bool SearchServer::IsValidWord(const std::string& word) {
