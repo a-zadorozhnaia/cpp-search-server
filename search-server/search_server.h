@@ -7,7 +7,7 @@
 #include <deque>
 #include <algorithm>
 #include <cmath>
-
+#include <list>
 #include "document.h"
 #include "string_processing.h"
 
@@ -37,9 +37,9 @@ public:
     // Возвращает список слов и статус документа с document_id, соответсвующий запросу raw_query
     std::tuple<std::vector<std::string>, DocumentStatus> MatchDocument(const std::string& raw_query, int document_id) const;
     // Возращает итератор на id первый документа
-    std::vector<int>::const_iterator begin() const;
+    std::list<int>::const_iterator begin() const;
     // Возращает итератор на id последнего документа
-    std::vector<int>::const_iterator end() const;
+    std::list<int>::const_iterator end() const;
     // Возвращает частоту слов по id документа
     const std::map<std::string, double>& GetWordFrequencies(int document_id) const;
     // Удаляет документ из поискового сервера
@@ -58,7 +58,7 @@ private:
     // Список документов
     std::map<int, DocumentData> documents_;
     // Список id документов
-    std::vector<int> documents_id_;
+    std::list<int> documents_id_;
 
     static bool IsValidWord(const std::string& word);
     bool IsStopWord(const std::string& word) const;
