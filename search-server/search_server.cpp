@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
-
+#include <set>
 #include "document.h"
 
 using namespace std::literals;
@@ -28,7 +28,7 @@ void SearchServer::AddDocument(int document_id, const std::string& document, Doc
         word_to_document_freqs_[word][document_id]  += inv_word_count;
         document_id_to_word_freq_[document_id][word] += inv_word_count;
     }
-    documents_id_.push_back(document_id);
+    documents_id_.insert(document_id);
     documents_.emplace(document_id, DocumentData{ComputeAverageRating(ratings), status});
 }
 
@@ -72,11 +72,11 @@ std::tuple<std::vector<std::string>, DocumentStatus> SearchServer::MatchDocument
     return matched_documents;
 }
 
-std::list<int>::const_iterator SearchServer::begin() const {
+std::set<int>::const_iterator SearchServer::begin() const {
     return documents_id_.cbegin();
 }
 
-std::list<int>::const_iterator SearchServer::end() const {
+std::set<int>::const_iterator SearchServer::end() const {
     return documents_id_.cend();
 }
 
@@ -91,8 +91,7 @@ const std::map<std::string, double>& SearchServer::GetWordFrequencies(int docume
 
 void SearchServer::RemoveDocument(int document_id) {
     // Удаление из списка id документов
-    auto it = std::remove(documents_id_.begin(), documents_id_.end(), document_id);
-    documents_id_.erase(it);
+    documents_id_.erase(document_id);
 
     // Удаление из списка документов
     documents_.erase(document_id);
