@@ -6,6 +6,7 @@ CONFIG -= qt
 SOURCES += \
         document.cpp \
         main.cpp \
+        process_queries.cpp \
         read_input_functions.cpp \
         remove_duplicates.cpp \
         request_queue.cpp \
@@ -17,6 +18,7 @@ HEADERS += \
     document.h \
     log_duration.h \
     paginator.h \
+    process_queries.h \
     read_input_functions.h \
     remove_duplicates.h \
     request_queue.h \

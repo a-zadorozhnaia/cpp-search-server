@@ -2,6 +2,7 @@
 
 int main()
 {
-    TestRemoveDublicate();
+    TestParallelMatchDocumentLight();
+    TestParallelMatchDocument();
     return 0;
 }
