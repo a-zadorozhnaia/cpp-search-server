@@ -2,7 +2,7 @@
 
 int main()
 {
-    TestParallelMatchDocumentLight();
-    TestParallelMatchDocument();
+    TestParallelFindTopDocumentsLight();
+    TestParallelFindTopDocuments();
     return 0;
 }

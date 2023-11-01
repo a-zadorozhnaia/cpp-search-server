@@ -40,7 +40,8 @@ void SearchServer::AddDocument(int document_id, const std::string_view document,
 
 std::vector<Document> SearchServer::FindTopDocuments(const std::string_view raw_query, DocumentStatus status) const {
 
-    return FindTopDocuments(raw_query,
+    return FindTopDocuments(std::execution::seq,
+                            raw_query,
                             [status](int document_id, DocumentStatus document_status, int rating) {
                                 return document_status == status;
                             });
@@ -58,7 +59,7 @@ std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDoc
     return MatchDocument(std::execution::seq, raw_query, document_id);
 }
 
-std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDocument(std::execution::sequenced_policy exec, const std::string_view raw_query, int document_id) const {
+std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDocument(const std::execution::sequenced_policy& policy, const std::string_view raw_query, int document_id) const {
     Query query = ParseQuery(false, raw_query);
     // Если есть хоть одно минус слово, возвращаем пустой вектор matched_words
     for (const auto word : query.minus_words) {
@@ -84,25 +85,11 @@ std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDoc
     return matched_documents;
 }
 
-//1. Не нужно стараться написать одинаковый код для паралельной и последовательной политик.
-//   Пишите разные методы - последовательная версия просто вызывает версию без политик.
-//2. Использование std::set в Query не позволит эффективно распаралелить работу с плюс и минус словами.
-//   В самой ParseQuery ничего распаралеливать не нужно.
-//   Однако при переходе на другие контейнеры в Query нужно в той версии, которая используется без политик
-//   и в последовательной политике избавиться от дубликатов плюс и минус слов.
-//   Посмотрите на алгоритмы std::sort--std::unique--std::vector::erase.
-//   Для паралельной версии удаление дубликатов нужно делать непосредственно в Match
-//3. В паралельной и последовательной версиях Match сначала проверяйте минус слова.
-//   Посмотрите std::any_of
-//4. В паралельной версии при создании вектора результатов задайте его размер сразу
-//   (подумайте - какой это размер может быть максимальным).
-//   И используйте std::copy_if - обратите внимание на возвращаемый этим алгоритмом результат
-//   - это поможет откорректировать размер вектора результатов.
-std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDocument(std::execution::parallel_policy exec, const std::string_view raw_query, int document_id) const {
+std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDocument(const std::execution::parallel_policy& policy, const std::string_view raw_query, int document_id) const {
     Query query = ParseQuery(true, raw_query);
 
     // Если есть хоть одно минус слово, возвращаем пустой вектор matched_words
-    if (std::any_of(exec,
+    if (std::any_of(policy,
                     query.minus_words.begin(),
                     query.minus_words.end(),
                     [&](auto word)
@@ -115,7 +102,7 @@ std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDoc
 
     // Создаём вектор совпадений максимально возможного размера
     std::vector<std::string_view> matched_words(query.plus_words.size());
-    auto words_end = copy_if(exec,
+    auto words_end = copy_if(policy,
                              query.plus_words.begin(),
                              query.plus_words.end(),
                              matched_words.begin(),
@@ -154,7 +141,7 @@ void SearchServer::RemoveDocument(int document_id)
     RemoveDocument(std::execution::seq, document_id);
 }
 
-void SearchServer::RemoveDocument(std::execution::sequenced_policy exec, int document_id) {
+void SearchServer::RemoveDocument(const std::execution::sequenced_policy &policy, int document_id) {
     if (documents_id_.count(document_id) == 0)
         return;
 
@@ -173,7 +160,7 @@ void SearchServer::RemoveDocument(std::execution::sequenced_policy exec, int doc
     document_id_to_word_freq_.erase(document_id);
 }
 
-void SearchServer::RemoveDocument(std::execution::parallel_policy exec, int document_id) {
+void SearchServer::RemoveDocument(const std::execution::parallel_policy& policy, int document_id) {
     if (documents_id_.count(document_id) == 0)
         return;
 

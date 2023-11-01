@@ -18,10 +18,13 @@ HEADERS += \
     document.h \
     log_duration.h \
     paginator.h \
+    print_out.h \
     process_queries.h \
     read_input_functions.h \
     remove_duplicates.h \
     request_queue.h \
     search_server.h \
     string_processing.h \
-    test_search_server.h
+    test_search_server.h \
+    concurrent_map.h \
+    print_out.h

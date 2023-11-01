@@ -10,3 +10,5 @@ void TestParallelRemoveDocuments();
 void TestParallelRemoveDocumentsLight();
 void TestParallelMatchDocumentLight();
 void TestParallelMatchDocument();
+void TestParallelFindTopDocumentsLight();
+void TestParallelFindTopDocuments();

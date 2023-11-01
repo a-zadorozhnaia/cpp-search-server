@@ -1,3 +1,5 @@
+#include "test_search_server.h"
+
 #include <iostream>
 #include <random>
 #include <string>
@@ -10,6 +12,7 @@
 #include "remove_duplicates.h"
 #include "process_queries.h"
 #include "log_duration.h"
+#include "print_out.h"
 
 void TestSearchServerException()
 {
@@ -293,7 +296,7 @@ void TestProcessQueriesJoined()
         "curly hair"s
     };
     for (const Document& document : ProcessQueriesJoined(search_server, queries)) {
-        cout << "Document "s << document.id << " matched with relevance "s << document.relevance << endl;
+        std::cout << "Document "s << document.id << " matched with relevance "s << document.relevance << std::endl;
     }
 }
 
@@ -304,7 +307,7 @@ void Test(string_view mark, SearchServer search_server, ExecutionPolicy&& policy
     for (int id = 0; id < document_count; ++id) {
         search_server.RemoveDocument(policy, id);
     }
-    cout << search_server.GetDocumentCount() << endl;
+    std::cout << search_server.GetDocumentCount() << std::endl;
 }
 
 #define TEST_PAR(mode) Test(#mode, search_server, execution::mode)
@@ -352,8 +355,8 @@ void TestParallelRemoveDocumentsLight() {
     const string query = "curly and funny"s;
 
     auto report = [&search_server, &query] {
-        cout << search_server.GetDocumentCount() << " documents total, "s
-            << search_server.FindTopDocuments(query).size() << " documents for query ["s << query << "]"s << endl;
+        std::cout << search_server.GetDocumentCount() << " documents total, "s
+            << search_server.FindTopDocuments(query).size() << " documents for query ["s << query << "]"s << std::endl;
     };
 
     report();
@@ -388,25 +391,25 @@ void TestParallelMatchDocumentLight() {
 
     {
         const auto [words, status] = search_server.MatchDocument(query, 1);
-        cout << words.size() << " words for document 1"s << endl;
+        std::cout << words.size() << " words for document 1"s << std::endl;
         // 1 words for document 1
     }
 
     {
         const auto [words, status] = search_server.MatchDocument(execution::seq, query, 2);
-        cout << words.size() << " words for document 2"s << endl;
+        std::cout << words.size() << " words for document 2"s << std::endl;
         // 2 words for document 2
     }
 
     {
         const auto [words, status] = search_server.MatchDocument(execution::par, query, 3);
-        cout << words.size() << " words for document 3"s << endl;
+        std::cout << words.size() << " words for document 3"s << std::endl;
         // 0 words for document 3
     }
 }
 
 template <typename ExecutionPolicy>
-void Test(string_view mark, SearchServer search_server, const string& query, ExecutionPolicy&& policy) {
+void TestMatch(string_view mark, SearchServer search_server, const string& query, ExecutionPolicy&& policy) {
     LOG_DURATION(mark);
     const int document_count = search_server.GetDocumentCount();
     int word_count = 0;
@@ -414,10 +417,10 @@ void Test(string_view mark, SearchServer search_server, const string& query, Exe
         const auto [words, status] = search_server.MatchDocument(policy, query, id);
         word_count += words.size();
     }
-    cout << word_count << endl;
+    std::cout << word_count << std::endl;
 }
 
-#define TEST_MATCH(policy) Test(#policy, search_server, query, execution::policy)
+#define TEST_MATCH(policy) TestMatch(#policy, search_server, query, execution::policy)
 
 void TestParallelMatchDocument() {
     mt19937 generator;
@@ -434,4 +437,69 @@ void TestParallelMatchDocument() {
 
     TEST_MATCH(seq);
     TEST_MATCH(par);
+}
+
+void TestParallelFindTopDocumentsLight() {
+    SearchServer search_server("and with"s);
+    int id = 0;
+    for (
+        const string& text : {
+            "white cat and yellow hat"s,
+            "curly cat curly tail"s,
+            "nasty dog with big eyes"s,
+            "nasty pigeon john"s,
+        }
+    ) {
+        search_server.AddDocument(++id, text, DocumentStatus::ACTUAL, {1, 2});
+    }
+    std::cout << "ACTUAL by default:"s << std::endl;
+    // последовательная версия
+    {
+        LOG_DURATION("Seq: ACTUAL by default");
+        for (const Document& document : search_server.FindTopDocuments("curly nasty cat"s)) {
+            PrintDocument(document);
+        }
+    }
+    std::cout << "BANNED:"s << std::endl;
+    // последовательная версия
+    {
+        LOG_DURATION("Seq: BANNED");
+        for (const Document& document : search_server.FindTopDocuments(execution::seq, "curly nasty cat"s, DocumentStatus::BANNED)) {
+            PrintDocument(document);
+        }
+    }
+    std::cout << "Even ids:"s << std::endl;
+    // параллельная версия
+    {
+        LOG_DURATION("Par: Even ids");
+        for (const Document& document : search_server.FindTopDocuments(execution::par, "curly nasty cat"s, [](int document_id, DocumentStatus status, int rating) { return document_id % 2 == 0; })) {
+            PrintDocument(document);
+        }
+    }
+}
+
+template <typename ExecutionPolicy>
+void TestFind(string_view mark, const SearchServer& search_server, const vector<string>& queries, ExecutionPolicy&& policy) {
+    LOG_DURATION(mark);
+    double total_relevance = 0;
+    for (const string_view query : queries) {
+        for (const auto& document : search_server.FindTopDocuments(policy, query)) {
+            total_relevance += document.relevance;
+        }
+    }
+    std::cout << total_relevance << std::endl;
+}
+#define TEST_FIND(policy) TestFind(#policy, search_server, queries, execution::policy)
+
+void TestParallelFindTopDocuments() {
+    mt19937 generator;
+    const auto dictionary = GenerateDictionary(generator, 1000, 10);
+    const auto documents = GenerateQueries(generator, dictionary, 10'000, 70);
+    SearchServer search_server(dictionary[0]);
+    for (size_t i = 0; i < documents.size(); ++i) {
+        search_server.AddDocument(i, documents[i], DocumentStatus::ACTUAL, {1, 2, 3});
+    }
+    const auto queries = GenerateQueries(generator, dictionary, 100, 70);
+    TEST_FIND(seq);
+    TEST_FIND(par);
 }
