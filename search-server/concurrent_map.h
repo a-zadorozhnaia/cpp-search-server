@@ -19,35 +19,35 @@ public:
     };
 
     explicit ConcurrentMap(size_t bucket_count)
-        : bucket_count_(bucket_count)
-        , maps_vector_(bucket_count)
-        , mutex_vector_(bucket_count )
+        : buckets_(bucket_count)
     {};
 
     Access operator[](const Key& key)
     {
-        uint64_t tmp = static_cast<uint64_t>(key) % bucket_count_;
-        return {std::lock_guard<std::mutex>(mutex_vector_[tmp]), maps_vector_[tmp][key]};
+        auto& bucket = buckets_[static_cast<uint64_t>(key) % buckets_.size()];
+        return {std::lock_guard<std::mutex>(bucket.mutex), bucket.map[key]};
     }
 
     std::map<Key, Value> BuildOrdinaryMap()
     {
         std::map<Key, Value> res;
-        for (size_t i = 0; i < bucket_count_; ++i) {
-            std::lock_guard<std::mutex> guard(mutex_vector_[i]);
-            res.insert(maps_vector_[i].begin(), maps_vector_[i].end());
+        for (auto& [mutex, map] : buckets_) {
+            std::lock_guard<std::mutex> guard(mutex);
+            res.insert(map.begin(), map.end());
         }
         return res;
     }
 
     void erase(const Key& key) {
-        uint64_t tmp = static_cast<uint64_t>(key) % bucket_count_;
-        std::lock_guard<std::mutex> g(mutex_vector_[tmp]);
-        maps_vector_[tmp].erase(key);
+        auto& bucket = buckets_[static_cast<uint64_t>(key) % buckets_.size()];
+        std::lock_guard<std::mutex> g(bucket.mutex);
+        bucket.map.erase(key);
     }
 
 private:
-    size_t bucket_count_;
-    std::vector<std::map<Key, Value>> maps_vector_;
-    std::vector<std::mutex> mutex_vector_;
+    struct Bucket {
+        std::mutex mutex;
+        std::map<Key, Value> map;
+    };
+    std::vector<Bucket> buckets_;
 };

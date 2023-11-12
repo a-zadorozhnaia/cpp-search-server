@@ -27,15 +27,14 @@ void SearchServer::AddDocument(int document_id, const std::string_view document,
         throw std::invalid_argument("Попытка добавить документ c id ранее добавленного документа"s);
     }
 
-    words_storage_.emplace_back(document);
-    std::vector<std::string_view> words = SplitIntoWordsNoStop(words_storage_.back());
+    documents_id_.insert(document_id);
+    documents_.emplace(document_id, DocumentData{{document.begin(), document.end()}, ComputeAverageRating(ratings), status});
+    std::vector<std::string_view> words = SplitIntoWordsNoStop(documents_[document_id].words);
     const double inv_word_count = 1.0 / words.size();
     for (const std::string_view word : words) {
         word_to_document_freqs_[word][document_id]  += inv_word_count;
         document_id_to_word_freq_[document_id][word] += inv_word_count;
     }
-    documents_id_.insert(document_id);
-    documents_.emplace(document_id, DocumentData{ComputeAverageRating(ratings), status});
 }
 
 std::vector<Document> SearchServer::FindTopDocuments(const std::string_view raw_query, DocumentStatus status) const {
@@ -55,12 +54,12 @@ int SearchServer::GetDocumentCount() const {
     return documents_.size();
 }
 
-std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDocument(const std::string_view raw_query, int document_id) const {
+SearchServer::MatchedDocument SearchServer::MatchDocument(const std::string_view raw_query, int document_id) const {
     return MatchDocument(std::execution::seq, raw_query, document_id);
 }
 
-std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDocument(const std::execution::sequenced_policy& policy, const std::string_view raw_query, int document_id) const {
-    Query query = ParseQuery(false, raw_query);
+SearchServer::MatchedDocument SearchServer::MatchDocument(const std::execution::sequenced_policy& policy, const std::string_view raw_query, int document_id) const {
+    Query query = ParseQuery(raw_query, false);
     // Если есть хоть одно минус слово, возвращаем пустой вектор matched_words
     for (const auto word : query.minus_words) {
         if (word_to_document_freqs_.count(word) == 0) {
@@ -85,8 +84,8 @@ std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDoc
     return matched_documents;
 }
 
-std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDocument(const std::execution::parallel_policy& policy, const std::string_view raw_query, int document_id) const {
-    Query query = ParseQuery(true, raw_query);
+SearchServer::MatchedDocument SearchServer::MatchDocument(const std::execution::parallel_policy& policy, const std::string_view raw_query, int document_id) const {
+    Query query = ParseQuery(raw_query, true);
 
     // Если есть хоть одно минус слово, возвращаем пустой вектор matched_words
     if (std::any_of(policy,
@@ -244,7 +243,7 @@ SearchServer::QueryWord SearchServer::ParseQueryWord(std::string_view text) cons
     return {text, is_minus, IsStopWord(text)};
 }
 
-SearchServer::Query SearchServer::ParseQuery(const bool is_par, const std::string_view text) const {
+SearchServer::Query SearchServer::ParseQuery(const std::string_view text, const bool is_par) const {
     Query query;
     for (const auto word : SplitIntoWords(text)) {
         if (!IsValidWord(word)) {

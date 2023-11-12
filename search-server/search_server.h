@@ -48,16 +48,22 @@ public:
 
     // Возвращает количесвто документов
     int GetDocumentCount() const;
+
     // Возвращает список слов и статус документа с document_id, соответсвующий запросу raw_query
-    std::tuple<std::vector<std::string_view>, DocumentStatus> MatchDocument(const std::string_view raw_query, int document_id) const;
-    std::tuple<std::vector<std::string_view>, DocumentStatus> MatchDocument(const std::execution::sequenced_policy& policy, const std::string_view raw_query, int document_id) const;
-    std::tuple<std::vector<std::string_view>, DocumentStatus> MatchDocument(const std::execution::parallel_policy&  policy, const std::string_view raw_query, int document_id) const;
+    using MatchedDocument = std::tuple<std::vector<std::string_view>, DocumentStatus>;
+    MatchedDocument MatchDocument(const std::string_view raw_query, int document_id) const;
+    MatchedDocument MatchDocument(const std::execution::sequenced_policy& policy, const std::string_view raw_query, int document_id) const;
+    MatchedDocument MatchDocument(const std::execution::parallel_policy&  policy, const std::string_view raw_query, int document_id) const;
+
     // Возращает итератор на id первый документа
     std::set<int>::const_iterator begin() const;
+
     // Возращает итератор на id последнего документа
     std::set<int>::const_iterator end() const;
+
     // Возвращает частоту слов по id документа
     const std::map<std::string_view, double>& GetWordFrequencies(int document_id) const;
+
     // Удаляет документ из поискового сервера
     void RemoveDocument(int document_id);
     void RemoveDocument(const std::execution::sequenced_policy& policy, int document_id);
@@ -65,18 +71,21 @@ public:
 
 private:
     struct DocumentData {
+        std::string words;
         int rating;
         DocumentStatus status;
     };
-    // Множество слов документов
-    std::deque<std::string> words_storage_;
+
     // Множество стоп-слов
     std::set<std::string, std::less<>> stop_words_;
+
     // Частота слова для каждого документа
     std::map<std::string_view, std::map<int, double>> word_to_document_freqs_;
     std::map<int, std::map<std::string_view, double>> document_id_to_word_freq_;
+
     // Список документов
     std::map<int, DocumentData> documents_;
+
     // Список id документов
     std::set<int> documents_id_;
 
@@ -99,7 +108,7 @@ private:
         std::vector<std::string_view> minus_words;
     };
 
-    Query ParseQuery(const bool is_par, const std::string_view text) const;
+    Query ParseQuery(const std::string_view text, const bool is_par = true) const;
 
     double ComputeWordInverseDocumentFreq(std::string_view word) const;
 
@@ -127,7 +136,7 @@ std::vector<Document> SearchServer::FindTopDocuments(const std::string_view raw_
 
 template<typename ExecutionPolicy, typename DocumentPredicate>
 std::vector<Document> SearchServer::FindTopDocuments(const ExecutionPolicy &policy, const std::string_view raw_query, DocumentPredicate document_predicate) const {
-    Query query = ParseQuery(false, raw_query);
+    Query query = ParseQuery(raw_query, false);
     std::vector<Document> matched_documents = FindAllDocuments(policy, query, document_predicate);
 
     std::sort(matched_documents.begin(),
@@ -169,7 +178,7 @@ std::vector<Document> SearchServer::FindAllDocuments(const Query& query, Documen
 template <typename DocumentPredicate>
 std::vector<Document> SearchServer::FindAllDocuments(const std::execution::sequenced_policy& policy, const Query& query, DocumentPredicate document_predicate) const {
     std::map<int, double> document_to_relevance;
-    for (const auto word : query.plus_words) {
+    for (const auto& word : query.plus_words) {
         if (word_to_document_freqs_.count(word) == 0) {
             continue;
         }
@@ -182,7 +191,7 @@ std::vector<Document> SearchServer::FindAllDocuments(const std::execution::seque
         }
     }
 
-    for (const auto word : query.minus_words) {
+    for (const auto& word : query.minus_words) {
         if (word_to_document_freqs_.count(word) == 0) {
             continue;
         }
